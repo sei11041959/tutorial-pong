@@ -18,10 +18,10 @@ function AI:update(dt)
     if self.timer > self.rate then
         self.timer = 0
         --normal mode
-        --self:acqioreTarget()
+        self:acqioreTarget()
     end
     --VERYSTRONG MODE
-    self:acqioreTarget()
+    --self:acqioreTarget()
     self:move(dt)
     self:checkBoundaries()
 end
@@ -29,9 +29,9 @@ end
 
 function AI:move(dt)
     --normal mode
-    --self.y = self.y + self.yVel * dt
+    self.y = self.y + self.yVel * dt
     --VERYSTRONG MODE
-    self.y = Ball.y + Ball.yVel * dt
+    --self.y = Ball.y + Ball.yVel * dt
 end
 
 
