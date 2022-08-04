@@ -1,5 +1,7 @@
 Ball = {}
 
+bouncesfx = love.audio.newSource("assets/bounce.wav","static") 
+
 function Ball:load()
     self.x = love.graphics.getWidth() / 2
     self.y = love.graphics.getHeight() / 2
@@ -24,7 +26,8 @@ function Ball:move(dt)
 end
 
 function Ball:collide()
-    if checkCollision(self, Player) then 
+    if checkCollision(self, Player) then
+        love.audio.play(bouncesfx)
         self.xVel = self.speed
         local middleBall = self.y + self.height / 2 
         local middlePlayer = Player.y + Player.height / 2 
@@ -32,7 +35,8 @@ function Ball:collide()
         self.yVel = collisionPosition * 5 
      end
 
-     if checkCollision(self, AI) then 
+     if checkCollision(self, AI) then
+        love.audio.play(bouncesfx)
         self.xVel = -self.speed
         local middleBall = self.y + self.height / 2 
         local middleAI = AI.y + AI.height / 2 
