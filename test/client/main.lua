@@ -1,26 +1,28 @@
-local player = require("player")
-require("menu")
+require("tcp_client.main")
+require("ui.main")
+
+local info;
+
 
 function love.load()
     MainMenu:load()
-    Player:load()
+    TCP_client:load()
 end
 
 
 function love.update(dt)
-    --Player:update(dt)
+    TCP_client:updata(dt)
 end
 
 function love.draw()
     MainMenu:draw()
-    --Player:draw()
+    TCP_client:draw()
 end
 
-
---[[function checkCollision(a,b)
+function checkCollision(a,b)
     if a.x + a.width > b.x and a.x < b.x + b.width and a.y + a.height > b.y and a.y < b.y + b.height then
         return true
     else
         return false
     end
-end--]]
+end
