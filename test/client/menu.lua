@@ -1,12 +1,18 @@
+require("connect")
+
 MainMenu = {}
 
 local buttons = {}
+local text;
 
 
 function MainMenu:load()
-    table.insert(buttons,newButton("start",function() print("start") end))
+    table.insert(buttons,newButton("start",function()
+        text = connect_req()
+        table.remove(buttons,1)
+    end))
     table.insert(buttons,newButton("option",function() print("option") end))
-    table.insert(buttons,newButton("exit",function() print("exit");os.exit(); end))
+    table.insert(buttons,newButton("quit",function() print("quit"); os.exit();end))
 end
 
 
@@ -46,6 +52,8 @@ function MainMenu:draw()
 
         button.now = love.mouse.isDown(1)
         if hover and button.now and not button.last then
+            local clieckfx = love.audio.newSource("assets/click.wav","static")
+            love.audio.play(clieckfx)
             button.func()
         end
 
@@ -56,6 +64,10 @@ function MainMenu:draw()
         love.graphics.print(button.text,font,(ww * 0.5) - textW * 0.5,by + textH * 0.5)
 
         cursor_y = cursor_y + (button_height + margin)
+    end
+    if text ~= nil then
+        love.graphics.setColor(255,255,255,1.0)
+        love.graphics.print(text,font,0,0)
     end
 end
 
