@@ -5,15 +5,22 @@ data_receive = {}
 local info;
 
 local host,port = "127.0.0.1",8080
-local c = socket.tcp()
+local c = assert(socket.tcp())
 local info = {
     host = host,
-    port = port
+    port = port,
+    --c = c
 }
 
-c:connect(host,port)
+local __,error = c:connect(host,port)
 love.thread.getChannel('info'):push(info)
 print(info.host.." : "..info.port)
+print(error)
+if error == nil then
+    print("conncetion successfully")
+    love.thread.getChannel('connect'):push("successfully")
+end
+
 while true do
     local data,err = c:receive()
     if data == nil then
