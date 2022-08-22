@@ -8,7 +8,9 @@ function Player:load()
     self.width = 20
     self.height = 100
     self.speed = 500
-    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed}
+    self.client_No = love.thread.getChannel('client_No'):pop()
+    print(self.client_No)
+    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed,client_No = self.client_No}
     love.thread.getChannel('client_data'):push(client_data)
 end
 
@@ -17,7 +19,7 @@ end
 function Player:updata(dt)
     self:move(dt)
     self:checkBoundaries()
-    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed}
+    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed,client_No = self.client_No}
     love.thread.getChannel('client_data'):push(client_data)
 end
 
