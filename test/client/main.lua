@@ -11,7 +11,7 @@ end
 
 
 function love.update(dt)
-    TCP_client:updata(dt)
+    TCP_client:update(dt)
 end
 
 function love.draw()

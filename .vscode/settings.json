@@ -8,6 +8,9 @@
         "lowercase-global",
         "param-type-mismatch",
         "redundant-parameter",
-        "undefined-global"
+        "undefined-global",
+        "cast-local-type",
+        "ambiguity-1",
+        "need-check-nil"
     ],
 }

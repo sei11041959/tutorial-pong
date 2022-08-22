@@ -14,7 +14,7 @@ end
 
 
 
-function Player:update(dt)
+function Player:updata(dt)
     self:move(dt)
     self:checkBoundaries()
     client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed}
