@@ -1,3 +1,4 @@
+require("tcp_client.main")
 require("lib.log")
 
 Button = {}
@@ -18,6 +19,7 @@ end
 
 function Button:load()
     newButton("start",function ()
+        client_connect()
         buttons = nil
     end)
     --newButton("option",function() print("option") end)

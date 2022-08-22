@@ -1,5 +1,5 @@
 function love.conf(t)
-    t.title = "pong!server"
+    t.title = "Pong!server"
     t.version = "11.4"
     t.console = true
     t.window.width = 1280

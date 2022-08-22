@@ -2,6 +2,7 @@ require("tcp_client.main")
 require("ui.main")
 
 local info;
+local connect;
 
 
 function love.load()
