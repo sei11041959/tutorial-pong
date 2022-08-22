@@ -11,6 +11,7 @@
         "undefined-global",
         "cast-local-type",
         "ambiguity-1",
-        "need-check-nil"
+        "need-check-nil",
+        "assign-type-mismatch"
     ],
 }
