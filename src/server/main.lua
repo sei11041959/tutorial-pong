@@ -62,13 +62,9 @@ function event()
         if data then
             client_data[data.client_No] = data
             if data.client_No == 1 then
-                if client_data[2] then
-                    client:send("enemy_data",client_data[2])
-                end
+                if client_data[2] then client:send("enemy_data",client_data[2]) end
             elseif data.client_No == 2 then
-                if client_data[1] then
-                    client:send("enemy_data",client_data[1])
-                end
+                if client_data[1] then client:send("enemy_data",client_data[1]) end
             end
         end
     end)

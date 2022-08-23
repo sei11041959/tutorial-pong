@@ -21,12 +21,10 @@ function TCP_client:update(dt)
         updata()
     end
     if load_start then Player:updata(dt) end
-    Enemy:updata()
 end
 
 function TCP_client:draw()
     if load_start then Player:draw() end
-    Enemy:draw()
 end
 
 function client_connect()

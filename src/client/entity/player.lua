@@ -1,6 +1,7 @@
 Player = {}
 
 client_data = {}
+enemy_data = {}
 
 function Player:load()
     self.client_No = love.thread.getChannel('client_No'):pop()
@@ -13,8 +14,7 @@ function Player:load()
         self.x = love.graphics.getWidth() - self.width - 50
     end
     self.y = love.graphics.getHeight() / 2
-    client_data = {x = self.x,y = self.y,client_No = self.client_No}
-    love.thread.getChannel('client_data'):push(client_data)
+    love.thread.getChannel('client_data'):push({x = self.x,y = self.y,client_No = self.client_No})
 end
 
 
@@ -22,14 +22,18 @@ end
 function Player:updata(dt)
     self:move(dt)
     self:checkBoundaries()
-    client_data = {x = self.x,y = self.y,client_No = self.client_No}
-    love.thread.getChannel('client_data'):push(client_data)
+    love.thread.getChannel('client_data'):push({x = self.x,y = self.y,client_No = self.client_No})
+    enemy_data = love.thread.getChannel('enemy_data'):pop()
 end
 
 
 function Player:draw()
     love.graphics.setColor(255,255,255,1)
     love.graphics.rectangle("fill",self.x,self.y,self.width,self.height)
+    if enemy_data then
+        love.graphics.setColor(255,255,255,1)
+        love.graphics.rectangle("fill",enemy_data.x,enemy_data.y,20,100)
+    end
 end
 
 function Player:move(dt)
