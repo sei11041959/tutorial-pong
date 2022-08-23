@@ -1,19 +1,16 @@
 local sock = require("lib.sock")
-local bitser = require("lib.bitser")
 
 require("lib.log")
 
 info = {host = "127.0.0.1",port = 8080}
 connection = 0;
 client_data = {}
-client_data_thread = {}
 client_list = {}
 
 
 
 function love.load()
     server = sock.newServer(info.host,info.port)
-    server:setSerialization(bitser.dumps, bitser.loads)
     log:info("waiting for connection. listen "..info.host.." : "..info.port.."")
     event()
 end
@@ -64,9 +61,13 @@ function event()
         if data then
             client_data[data.client_No] = data
             if data.client_No == 1 then
-                if client_data[2] then client:send("enemy_data",client_data[2]) end
+                if client_data[2] then
+                    client:send("enemy_data",client_data[2])
+                end
             elseif data.client_No == 2 then
-                if client_data[1] then client:send("enemy_data",client_data[1]) end
+                if client_data[1] then
+                    client:send("enemy_data",client_data[1])
+                end
             end
         end
     end)

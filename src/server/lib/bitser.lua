@@ -1,8 +1,10 @@
 --[[
 Copyright (c) 2020, Jasmijn Wellner
+
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
 copyright notice and this permission notice appear in all copies.
+
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -25,35 +27,30 @@ local ffi = require("ffi")
 local buf_pos = 0
 local buf_size = -1
 local buf = nil
-local buf_is_writable = true
 local writable_buf = nil
 local writable_buf_size = nil
-local includeMetatables = true -- togglable with bitser.includeMetatables(false)
 local SEEN_LEN = {}
 
 local function Buffer_prereserve(min_size)
 	if buf_size < min_size then
 		buf_size = min_size
 		buf = ffi.new("uint8_t[?]", buf_size)
-		buf_is_writable = true
 	end
 end
 
 local function Buffer_clear()
 	buf_size = -1
 	buf = nil
-	buf_is_writable = true
 	writable_buf = nil
 	writable_buf_size = nil
 end
 
 local function Buffer_makeBuffer(size)
-	if not buf_is_writable then
+	if writable_buf then
 		buf = writable_buf
 		buf_size = writable_buf_size
 		writable_buf = nil
 		writable_buf_size = nil
-		buf_is_writable = true
 	end
 	buf_pos = 0
 	Buffer_prereserve(size)
@@ -65,11 +62,8 @@ local function Buffer_newReader(str)
 end
 
 local function Buffer_newDataReader(data, size)
-	if buf_is_writable then
-		writable_buf = buf
-		writable_buf_size = buf_size
-	end
-	buf_is_writable = false
+	writable_buf = buf
+	writable_buf_size = buf_size
 	buf_pos = 0
 	buf_size = size
 	buf = ffi.cast("uint8_t*", data)
@@ -80,7 +74,6 @@ local function Buffer_reserve(additional_size)
 		buf_size = buf_size * 2
 		local oldbuf = buf
 		buf = ffi.new("uint8_t[?]", buf_size)
-		buf_is_writable = true
 		ffi.copy(buf, oldbuf, buf_pos)
 	end
 end
@@ -187,18 +180,15 @@ end
 
 local function write_table(value, seen)
 	local classkey
-	local metatable = getmetatable(value)
 	local classname = (class_name_registry[value.class] -- MiddleClass
 		or class_name_registry[value.__baseclass] -- SECL
-		or class_name_registry[metatable] -- hump.class
+		or class_name_registry[getmetatable(value)] -- hump.class
 		or class_name_registry[value.__class__] -- Slither
 		or class_name_registry[value.__class]) -- Moonscript class
 	if classname then
 		classkey = classkey_registry[classname]
 		Buffer_write_byte(242)
 		serialize_value(classname, seen)
-	elseif includeMetatables and metatable then
-		Buffer_write_byte(253)
 	else
 		Buffer_write_byte(240)
 	end
@@ -219,9 +209,6 @@ local function write_table(value, seen)
 			serialize_value(k, seen)
 			serialize_value(v, seen)
 		end
-	end
-	if includeMetatables and metatable and not classname then
-		serialize_value(metatable, seen)
 	end
 end
 
@@ -309,7 +296,7 @@ local function deserialize_value(seen)
 	elseif t < 240 then
 		--small resource
 		return add_to_seen(resource_registry[Buffer_read_string(t - 224)], seen)
-	elseif t == 240 or t == 253 then
+	elseif t == 240 then
 		--table
 		local v = add_to_seen({}, seen)
 		local len = deserialize_value(seen)
@@ -320,11 +307,6 @@ local function deserialize_value(seen)
 		for _ = 1, len do
 			local key = deserialize_value(seen)
 			v[key] = deserialize_value(seen)
-		end
-		if t == 253 then
-			if includeMetatables then
-				setmetatable(v, deserialize_value(seen))
-			end
 		end
 		return v
 	elseif t == 241 then
@@ -345,7 +327,7 @@ local function deserialize_value(seen)
 			instance[i] = deserialize_value(seen)
 		end
 		len = deserialize_value(seen)
-		for i = 1, len do
+		for _ = 1, len do
 			local key = deserialize_value(seen)
 			instance[key] = deserialize_value(seen)
 		end
@@ -435,8 +417,6 @@ end, loads = function(str)
 	end
 	Buffer_newReader(str)
 	return deserialize_value({})
-end, includeMetatables = function(bool)
-	includeMetatables = not not bool
 end, register = function(name, resource)
 	assert(not resource_registry[name], name .. " already registered")
 	resource_registry[name] = resource

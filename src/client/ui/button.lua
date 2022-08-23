@@ -20,7 +20,7 @@ end
 function Button:load()
     newButton("start",function ()
         client_connect()
-        buttons = {}
+        buttons = nil
     end)
     --newButton("option",function() print("option") end)
     newButton("quit",function()
