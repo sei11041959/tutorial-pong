@@ -1,4 +1,5 @@
 local sock = require("lib.sock")
+local bitser = require("lib.bitser")
 
 require("lib.log")
 
@@ -12,6 +13,7 @@ client_list = {}
 
 function love.load()
     server = sock.newServer(info.host,info.port)
+    server:setSerialization(bitser.dumps, bitser.loads)
     log:info("waiting for connection. listen "..info.host.." : "..info.port.."")
     event()
 end

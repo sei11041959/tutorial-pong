@@ -1,8 +1,8 @@
 local sock = require("lib.sock")
+local bitser = require("lib.bitser")
 
 require("lib.log")
 require("entity.player")
-require("entity.enemy")
 
 local info = {host = "127.0.0.1",port = 8080}
 local client;
@@ -29,6 +29,7 @@ end
 
 function client_connect()
     client = sock.newClient(info.host,info.port);
+    client:setSerialization(bitser.dumps, bitser.loads)
     log:info("try server connection ( "..info.host.." : "..info.port.." )")
     client:connect()
 

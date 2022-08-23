@@ -1,10 +1,8 @@
 --[[
-Copyright (c) 2016, Robin Wellner
-
+Copyright (c) 2020, Jasmijn Wellner
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
 copyright notice and this permission notice appear in all copies.
-
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -13,6 +11,8 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ]]
+
+local VERSION = '1.1'
 
 local floor = math.floor
 local pairs = pairs
@@ -25,29 +25,35 @@ local ffi = require("ffi")
 local buf_pos = 0
 local buf_size = -1
 local buf = nil
+local buf_is_writable = true
 local writable_buf = nil
 local writable_buf_size = nil
+local includeMetatables = true -- togglable with bitser.includeMetatables(false)
+local SEEN_LEN = {}
 
 local function Buffer_prereserve(min_size)
 	if buf_size < min_size then
 		buf_size = min_size
 		buf = ffi.new("uint8_t[?]", buf_size)
+		buf_is_writable = true
 	end
 end
 
 local function Buffer_clear()
 	buf_size = -1
 	buf = nil
+	buf_is_writable = true
 	writable_buf = nil
 	writable_buf_size = nil
 end
 
 local function Buffer_makeBuffer(size)
-	if writable_buf then
+	if not buf_is_writable then
 		buf = writable_buf
 		buf_size = writable_buf_size
 		writable_buf = nil
 		writable_buf_size = nil
+		buf_is_writable = true
 	end
 	buf_pos = 0
 	Buffer_prereserve(size)
@@ -59,8 +65,11 @@ local function Buffer_newReader(str)
 end
 
 local function Buffer_newDataReader(data, size)
-	writable_buf = buf
-	writable_buf_size = buf_size
+	if buf_is_writable then
+		writable_buf = buf
+		writable_buf_size = buf_size
+	end
+	buf_is_writable = false
 	buf_pos = 0
 	buf_size = size
 	buf = ffi.cast("uint8_t*", data)
@@ -71,6 +80,7 @@ local function Buffer_reserve(additional_size)
 		buf_size = buf_size * 2
 		local oldbuf = buf
 		buf = ffi.new("uint8_t[?]", buf_size)
+		buf_is_writable = true
 		ffi.copy(buf, oldbuf, buf_pos)
 	end
 end
@@ -81,16 +91,18 @@ local function Buffer_write_byte(x)
 	buf_pos = buf_pos + 1
 end
 
+local function Buffer_write_raw(data, len)
+	Buffer_reserve(len)
+	ffi.copy(buf + buf_pos, data, len)
+	buf_pos = buf_pos + len
+end
+
 local function Buffer_write_string(s)
-	Buffer_reserve(#s)
-	ffi.copy(buf + buf_pos, s, #s)
-	buf_pos = buf_pos + #s
+	Buffer_write_raw(s, #s)
 end
 
 local function Buffer_write_data(ct, len, ...)
-	Buffer_reserve(len)
-	ffi.copy(buf + buf_pos, ffi.new(ct, ...), len)
-	buf_pos = buf_pos + len
+	Buffer_write_raw(ffi.new(ct, ...), len)
 end
 
 local function Buffer_ensure(numbytes)
@@ -113,12 +125,14 @@ local function Buffer_read_string(len)
 	return x
 end
 
-local function Buffer_read_data(ct, len)
-	Buffer_ensure(len)
-	local x = ffi.new(ct)
-	ffi.copy(x, buf + buf_pos, len)
+local function Buffer_read_raw(data, len)
+	ffi.copy(data, buf + buf_pos, len)
 	buf_pos = buf_pos + len
-	return x
+	return data
+end
+
+local function Buffer_read_data(ct, len)
+	return Buffer_read_raw(ffi.new(ct), len)
 end
 
 local resource_registry = {}
@@ -173,14 +187,18 @@ end
 
 local function write_table(value, seen)
 	local classkey
+	local metatable = getmetatable(value)
 	local classname = (class_name_registry[value.class] -- MiddleClass
 		or class_name_registry[value.__baseclass] -- SECL
-		or class_name_registry[getmetatable(value)] -- hump.class
-		or class_name_registry[value.__class__]) -- Slither
+		or class_name_registry[metatable] -- hump.class
+		or class_name_registry[value.__class__] -- Slither
+		or class_name_registry[value.__class]) -- Moonscript class
 	if classname then
 		classkey = classkey_registry[classname]
 		Buffer_write_byte(242)
 		serialize_value(classname, seen)
+	elseif includeMetatables and metatable then
+		Buffer_write_byte(253)
 	else
 		Buffer_write_byte(240)
 	end
@@ -202,9 +220,28 @@ local function write_table(value, seen)
 			serialize_value(v, seen)
 		end
 	end
+	if includeMetatables and metatable and not classname then
+		serialize_value(metatable, seen)
+	end
 end
 
-local types = {number = write_number, string = write_string, table = write_table, boolean = write_boolean, ["nil"] = write_nil}
+local function write_cdata(value, seen)
+	local ty = ffi.typeof(value)
+	if ty == value then
+		-- ctype
+		Buffer_write_byte(251)
+		serialize_value(tostring(ty):sub(7, -2), seen)
+		return
+	end
+	-- cdata
+	Buffer_write_byte(252)
+	serialize_value(ty, seen)
+	local len = ffi.sizeof(value)
+	write_number(len)
+	Buffer_write_raw(ffi.typeof('$[1]', ty)(value), len)
+end
+
+local types = {number = write_number, string = write_string, table = write_table, boolean = write_boolean, ["nil"] = write_nil, cdata = write_cdata}
 
 serialize_value = function(value, seen)
 	if seen[value] then
@@ -220,9 +257,9 @@ serialize_value = function(value, seen)
 		return
 	end
 	local t = type(value)
-	if t ~= 'number' and t ~= 'boolean' and t ~= 'nil' then
-		seen[value] = seen.len
-		seen.len = seen.len + 1
+	if t ~= 'number' and t ~= 'boolean' and t ~= 'nil' and t ~= 'cdata' then
+		seen[value] = seen[SEEN_LEN]
+		seen[SEEN_LEN] = seen[SEEN_LEN] + 1
 	end
 	if resource_name_registry[value] then
 		local name = resource_name_registry[value]
@@ -244,7 +281,7 @@ end
 
 local function serialize(value)
 	Buffer_makeBuffer(4096)
-	local seen = {len = 0}
+	local seen = {[SEEN_LEN] = 0}
 	serialize_value(value, seen)
 end
 
@@ -272,7 +309,7 @@ local function deserialize_value(seen)
 	elseif t < 240 then
 		--small resource
 		return add_to_seen(resource_registry[Buffer_read_string(t - 224)], seen)
-	elseif t == 240 then
+	elseif t == 240 or t == 253 then
 		--table
 		local v = add_to_seen({}, seen)
 		local len = deserialize_value(seen)
@@ -280,9 +317,14 @@ local function deserialize_value(seen)
 			v[i] = deserialize_value(seen)
 		end
 		len = deserialize_value(seen)
-		for _ = 1, len do
+		for i = 1, len do
 			local key = deserialize_value(seen)
 			v[key] = deserialize_value(seen)
+		end
+		if t == 253 then
+			if includeMetatables then
+				setmetatable(v, deserialize_value(seen))
+			end
 		end
 		return v
 	elseif t == 241 then
@@ -335,6 +377,15 @@ local function deserialize_value(seen)
 	elseif t == 250 then
 		--short int
 		return Buffer_read_data("int16_t[1]", 2)[0]
+	elseif t == 251 then
+		--ctype
+		return ffi.typeof(deserialize_value(seen))
+	elseif t == 252 then
+		local ctype = deserialize_value(seen)
+		local len = deserialize_value(seen)
+		local read_into = ffi.typeof('$[1]', ctype)()
+		Buffer_read_raw(read_into, len)
+		return ctype(read_into[0])
 	else
 		error("unsupported serialized type " .. t)
 	end
@@ -354,22 +405,38 @@ local function deserialize_Slither(instance, class)
 	return getmetatable(class).allocate(instance)
 end
 
+local function deserialize_Moonscript(instance, class)
+	return setmetatable(instance, class.__base)
+end
+
 return {dumps = function(value)
 	serialize(value)
 	return ffi.string(buf, buf_pos)
 end, dumpLoveFile = function(fname, value)
 	serialize(value)
-	love.filesystem.write(fname, ffi.string(buf, buf_pos))
+	assert(love.filesystem.write(fname, ffi.string(buf, buf_pos)))
 end, loadLoveFile = function(fname)
-	local serializedData = love.filesystem.newFileData(fname)
+	local serializedData, error = love.filesystem.newFileData(fname)
+	assert(serializedData, error)
 	Buffer_newDataReader(serializedData:getPointer(), serializedData:getSize())
-	return deserialize_value({})
+	local value = deserialize_value({})
+	-- serializedData needs to not be collected early in a tail-call
+	-- so make sure deserialize_value returns before loadLoveFile does
+	return value
 end, loadData = function(data, size)
+	if size == 0 then
+		error('cannot load value from empty data')
+	end
 	Buffer_newDataReader(data, size)
 	return deserialize_value({})
 end, loads = function(str)
+	if #str == 0 then
+		error('cannot load value from empty string')
+	end
 	Buffer_newReader(str)
 	return deserialize_value({})
+end, includeMetatables = function(bool)
+	includeMetatables = not not bool
 end, register = function(name, resource)
 	assert(not resource_registry[name], name .. " already registered")
 	resource_registry[name] = resource
@@ -381,7 +448,7 @@ end, unregister = function(name)
 end, registerClass = function(name, class, classkey, deserializer)
 	if not class then
 		class = name
-		name = class.__name__ or class.name
+		name = class.__name__ or class.name or class.__name
 	end
 	if not classkey then
 		if class.__instanceDict then
@@ -391,7 +458,7 @@ end, registerClass = function(name, class, classkey, deserializer)
 			-- assume SECL
 			classkey = '__baseclass'
 		end
-		-- assume hump.class, Slither, or something else that doesn't store the
+		-- assume hump.class, Slither, Moonscript class or something else that doesn't store the
 		-- class directly on the instance
 	end
 	if not deserializer then
@@ -407,6 +474,9 @@ end, registerClass = function(name, class, classkey, deserializer)
 		elseif class.__name__ then
 			-- assume Slither
 			deserializer = deserialize_Slither
+		elseif class.__base then
+			-- assume Moonscript class
+			deserializer = deserialize_Moonscript
 		else
 			error("no deserializer given for unsupported class library")
 		end
@@ -421,4 +491,4 @@ end, unregisterClass = function(name)
 	classkey_registry[name] = nil
 	class_deserialize_registry[name] = nil
 	class_registry[name] = nil
-end, reserveBuffer = Buffer_prereserve, clearBuffer = Buffer_clear}
+end, reserveBuffer = Buffer_prereserve, clearBuffer = Buffer_clear, version = VERSION}
