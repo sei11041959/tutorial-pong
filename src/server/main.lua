@@ -6,6 +6,7 @@ info = {host = "127.0.0.1",port = 8080}
 connection = 0;
 client_data = {}
 client_list = {}
+players = {}
 
 
 
@@ -17,17 +18,15 @@ end
 
 function love.update(dt)
     server:update()
+    for i, player_data in ipairs(players) do
+        server:sendToAll("player_data",player_data)
+    end
 end
 
 function love.draw()
     if connection ~= 0 then
-        if client_data[1] then
-            local data = client_data[1]
-            love.graphics.setColor(255,255,255,1)
-            love.graphics.rectangle("fill",data.x,data.y,20,100)
-        end
-        if client_data[2] then
-            local data = client_data[2]
+        for i, player in ipairs(players) do
+            local data = player.player_data
             love.graphics.setColor(255,255,255,1)
             love.graphics.rectangle("fill",data.x,data.y,20,100)
         end
@@ -35,40 +34,35 @@ function love.draw()
 end
 
 function event()
-    server:on("connect", function(data, client)
+    server:on("connect", function( _, client)
         connection = connection + 1
-        client:send("msg", "<server> Hello!")
-        client:send("No", connection)
-        table.insert(client_list,client)
+        local player_data = {player_num = connection , player_data = newPlayer(connection)}
+        client:send("player_load",player_data)
+        table.insert(players,player_data)
         log:info("client connected")
-        log:info(connection)
     end)
 
-    server:on("disconnect", function(data, client)
+    server:on("disconnect", function( _, client)
         log:info("client disconnect")
         for i, v in ipairs(client_list) do
             if v == client then
                 table.remove(client_list,i)
-                if client_data[i] then
-                    client_data[i] = nil
-                end
             end
         end
         connection = connection - 1
     end)
 
-    server:on("client_data", function(data, client)
-        if data then
-            client_data[data.client_No] = data
-            if data.client_No == 1 then
-                if client_data[2] then
-                    client:send("enemy_data",client_data[2])
-                end
-            elseif data.client_No == 2 then
-                if client_data[1] then
-                    client:send("enemy_data",client_data[1])
-                end
-            end
+    server:on("y",function (data)
+        if data.y and data.player_num then
+            players[data.player_num].player_data.y = data.y
         end
     end)
+end
+
+function newPlayer(player_num)
+    if player_num == 1 then
+        return { width = 20,height = 100,speed = 500,x = 50,y = love.graphics.getHeight() / 2}
+    elseif player_num == 2 then
+        return { width = 20,height = 100,speed = 500,x = love.graphics.getWidth() - 20 - 50,y = love.graphics.getHeight() / 2}
+    end
 end

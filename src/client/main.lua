@@ -7,7 +7,6 @@ local connect;
 
 function love.load()
     MainMenu:load()
-    TCP_client:load()
 end
 
 
