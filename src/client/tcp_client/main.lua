@@ -1,12 +1,14 @@
 local sock = require("lib.sock")
 
 require("lib.log")
-require("player")
+require("entity.player")
+require("entity.enemy")
 
 local info = {host = "127.0.0.1",port = 8080}
 local client;
 local client_data;
 local load_start;
+local enemy_data;
 
 TCP_client = {}
 
@@ -14,19 +16,17 @@ function TCP_client:load()
 end
 
 function TCP_client:update(dt)
-    if load_start then
-        Player:updata(dt)
-    end
     if client then
         client:update()
         updata()
     end
+    if load_start then Player:updata(dt) end
+    Enemy:updata()
 end
 
 function TCP_client:draw()
-    if load_start then
-        Player:draw()
-    end
+    if load_start then Player:draw() end
+    Enemy:draw()
 end
 
 function client_connect()
@@ -56,10 +56,15 @@ function event()
     end)
 
     client:on("disconnect", function(data)
-        log:info("Client disconnected from the server.")
+        log:info("client disconnected from the server")
     end)
 
-    client:on("hello", function(data)
+    client:on("msg", function(data)
         log:info(data)
+    end)
+
+    client:on("enemy_data",function (data)
+        enemy_data = data
+        love.thread.getChannel('enemy_data'):push(enemy_data)
     end)
 end

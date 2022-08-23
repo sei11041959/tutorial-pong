@@ -3,14 +3,17 @@ Player = {}
 client_data = {}
 
 function Player:load()
-    self.x = 50
-    self.y = love.graphics.getHeight() / 2
+    self.client_No = love.thread.getChannel('client_No'):pop()
     self.width = 20
     self.height = 100
     self.speed = 500
-    self.client_No = love.thread.getChannel('client_No'):pop()
-    print(self.client_No)
-    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed,client_No = self.client_No}
+    if self.client_No == 1 then
+        self.x = 50
+    else
+        self.x = love.graphics.getWidth() - self.width - 50
+    end
+    self.y = love.graphics.getHeight() / 2
+    client_data = {x = self.x,y = self.y,client_No = self.client_No}
     love.thread.getChannel('client_data'):push(client_data)
 end
 
@@ -19,7 +22,7 @@ end
 function Player:updata(dt)
     self:move(dt)
     self:checkBoundaries()
-    client_data = {x = self.x,y = self.y,width = self.width,height = self.height,speed = self.speed,client_No = self.client_No}
+    client_data = {x = self.x,y = self.y,client_No = self.client_No}
     love.thread.getChannel('client_data'):push(client_data)
 end
 
